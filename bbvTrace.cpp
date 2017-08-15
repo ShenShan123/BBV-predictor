@@ -6,11 +6,11 @@
 #include "random_matrix.h"
 
 template <class B>
-Histogram<B>::Histogram(int s) : _size(s), samples(0)
+Histogram<B>::Histogram(const uint32_t s) : _size(s), samples(0)
 {
     bins = new B[_size];
     /* init bins to 0 */
-    for (int i = 0; i < _size; ++i)
+    for (uint32_t i = 0; i < _size; ++i)
         bins[i] = 0;
 }
 
@@ -18,7 +18,7 @@ template <class B>
 Histogram<B>::Histogram(const Histogram<B> & rhs) : _size(rhs._size), samples(rhs.samples)
 {
     bins = new B[_size];
-    for (int i = 0; i < _size; ++i)
+    for (uint32_t i = 0; i < _size; ++i)
         bins[i] = rhs.bins[i];
 }
 
@@ -26,7 +26,7 @@ template <class B>
 Histogram<B>::~Histogram() { delete [] bins; }
 
 template <class B>
-void Histogram<B>::setSize(int s)
+void Histogram<B>::setSize(const uint32_t s)
 {
     if (bins != nullptr)
         delete [] bins;
@@ -35,7 +35,7 @@ void Histogram<B>::setSize(int s)
     bins = new B[_size];
 
     /* init bins to 0 */
-    for (int i = 0; i < _size; ++i)
+    for (uint32_t i = 0; i < _size; ++i)
         bins[i] = 0;
 
     //std::cout << "size of bins " << _size << std::endl;
@@ -43,7 +43,7 @@ void Histogram<B>::setSize(int s)
 
 
 template <class B>
-const int Histogram<B>::size() const { return _size; }
+const uint32_t Histogram<B>::size() const { return _size; }
 
 template <class B>
 void Histogram<B>::clear()
@@ -60,19 +60,6 @@ void Histogram<B>::normalize()
     for (int i = 0; i < _size; ++i)
         bins[i] /= samples;
 }
-
-template <class B>
-double Histogram<B>::manhattanDist(const Histogram<B> & rhs)
-{
-    assert(_size == rhs._size);
-
-    B dist = 0;
-    for (uint32_t i = 0; i < _size; ++i)
-        dist += std::abs(bins[i] - rhs.bins[i]);
-
-    return (double)dist / samples;
-}
-
 
 template <class B>
 B & Histogram<B>::operator[](const int idx)
@@ -125,28 +112,83 @@ void Histogram<B>::print(std::ofstream & file)
     file  << "\n";
 }
 
+inline uint8_t _bsr_int32_(uint32_t num) {
+    uint8_t count = 0;
+    //__asm__(
+            //"bsrl %1, %0\n\t"//bsr和mov后面的l是指4字节数据宽度,
+            //"jnz 1f\n\t"
+            //"movl $-1,%0\n\t"
+            //"1:"
+            //:"=r"(count):"r"(num));
+    while (num) {
+        num >>= 1;
+        ++count;
+    }
 
-AccumulatorTable::Entry::Entry(const Histogram<> & rdv, const uint32_t idx) : phaseBBV(rdv), id(-1), occur(0), reuse(0), reuseIdx(idx)
-{
-    for (int i = 0; i < phaseBBV.size(); ++i)
-        id ^= phaseBBV[i];
+    return count;
 }
 
-AccumulatorTable::~AccumulatorTable() 
+template<class B>
+AccumulatorTable<B>::AccumulatorTable(const int s) : Histogram<B>(s), id(0) 
+{};
+
+template<class B>
+void AccumulatorTable<B>::compress(Histogram<B> & hist)
 {
-    for (auto it = pt.begin(); it != pt.end(); ++it)
+    /* compressing BBV, decrease the dimensions */
+    for(int i = 0; i < this->_size; ++i) {
+        for (int j = 0; j < hist.size(); ++j)
+            this->bins[i] += std::round((double)hist[j] * randM[i][j]);
+        this->samples += std::abs(this->bins[i]);
+    }
+
+    /* get the most significant bit index of average number */
+    uint32_t avg = this->samples / this->_size;
+    uint8_t mostSignBitIdx = _bsr_int32_((uint32_t)avg);
+    this->samples = 0;
+
+    for (int i = 0; i < this->_size; ++i) {
+        /* if the bin value lager than the 2*average, we set all 6 bits to 1 */
+        if (this->bins[i] > 2 * avg)
+            this->bins[i] = 0x3f;
+        /* we total keep 6bits, 2 bits of each bin which is corresponding with 2-MSBs of the average number, as well as 4-lower bits*/
+        assert(mostSignBitIdx >= 4);
+        this->bins[i] = (this->bins[i] >> (mostSignBitIdx - 4)) & 0x3f;
+        this->samples += this->bins[i];
+    }
+}
+
+template<class B>
+double AccumulatorTable<B>::manhattanDist(Histogram<B> & rhs)
+{
+    assert(this->_size == rhs.size());
+
+    B dist = 0;
+    for (uint32_t i = 0; i < this->_size; ++i)
+        /* mahattan(a, b) = sum(|ai-bi|) */
+        dist += std::abs(this->bins[i] - rhs[i]);
+
+    return (double)dist / this->samples;
+}
+
+template<class B>
+void AccumulatorTable<B>::setId(const uint32_t i) { id = i; }
+
+
+SignatureTable::~SignatureTable()
+{
+    for (auto it = st.begin(); it != st.end(); ++it)
         delete *it;
 }
 
-uint32_t AccumulatorTable::find(const Histogram<> & rdv)
+uint32_t SignatureTable::find(AccumulatorTable<> * & accu)
 {
-    ++index;
     double distMin = DBL_MAX;
-    Entry * entryPtr = nullptr;
+    AccumulatorTable<uint32_t> * entryPtr = nullptr;
 
     /* search for a similar RDV of a phase */
-    for (auto it = pt.begin(); it != pt.end(); ++it) {
-        double dist = (*it)->phaseBBV.manhattanDist(rdv);
+    for (auto it = st.begin(); it != st.end(); ++it) {
+        double dist = (*it)->manhattanDist(*accu);
 
         if (dist < distMin) {
             distMin = dist;
@@ -154,18 +196,18 @@ uint32_t AccumulatorTable::find(const Histogram<> & rdv)
         }
     }
 
+    /* if found a similar entry in signature table, just delete the accu */
     if (distMin < threshold && entryPtr != nullptr) {
-        ++entryPtr->occur;
-        entryPtr->reuse = index - entryPtr->reuseIdx;
-        entryPtr->reuseIdx = index;
+        delete accu;
         std::cout << "found a similar phase: id " << entryPtr->id << std::endl;
         return entryPtr->id;
     }
     else {
-        Entry * newEntry = new Entry(rdv, index);
-        std::cout << "creat a new phase: id " << newEntry->id << std::endl;
-        pt.push_back(newEntry);
-        return 0;
+        entryPtr = accu;
+        entryPtr->setId(st.size() + 1);
+        st.push_back(entryPtr);
+        std::cout << "create a new phase: id " << entryPtr->id << std::endl;
+        return entryPtr->id;
     }
 }
 
@@ -177,7 +219,7 @@ doCount(ADDRINT pc, BOOL isBranch, BOOL isMemRead, BOOL isMemWrite, BOOL hasRead
     /* count the interval length */
     if (isMemRead || isMemWrite || hasRead2) {
         NumMemAccs += (uint32_t)isMemRead + isMemWrite + hasRead2;
-        InterCount += (uint32_t)isMemRead + isMemWrite + hasRead2;;
+        InterCount += (uint32_t)isMemRead + isMemWrite + hasRead2;
     }
 
     if (isBranch) {
@@ -190,19 +232,12 @@ doCount(ADDRINT pc, BOOL isBranch, BOOL isMemRead, BOOL isMemWrite, BOOL hasRead
         InterCount -= IntervalSize;
         ++NumIntervals;
 
-        Histogram<double> accuTable(KnobAccumTabSize.Value());
-
-        /* compressing BBV, decrease the dimensions */
-        for(int i = 0; i < accuTable.size(); ++i) {
-            for (int j = 0; j < currBBV.size(); ++j)
-                accuTable[i] += (double)currBBV[j] * randM[i][j];
-            accuTable.samples += std::abs(accuTable[i]);
-        }
+        AccumulatorTable<> * accuTable = new AccumulatorTable<>(KnobAccumTabSize.Value());
+        accuTable->compress(currBBV);
+        accuTable->print(fout);
+        signTable.find(accuTable);
 
         currBBV.clear();
-        accuTable.normalize();
-        /* print compressed BBV */
-        accuTable.print(fout);
         std::cout << "==== " << NumIntervals << "th interval ====" << std::endl;
     }
 
@@ -283,10 +318,11 @@ int main(int argc, char *argv[])
 
     /* current phase BBV, max size is 2756 */
     currBBV.setSize(2756);
-    //phaseTable.setThreshold((double)1 / KnobRdvThreshold.Value());
+    signTable.setThreshold((double)KnobRdvThreshold.Value() / 100);
 
     std::cout << "truncation distance " << currBBV.size() << "\nout file " << KnobOutputFile.Value().c_str() \
-    << "\ninterval size " << IntervalSize << "\nPhase threshold " << (double) 1 / KnobRdvThreshold.Value() << std::endl;
+    << "\ninterval size " << IntervalSize << "\nPhase threshold " << (double) KnobRdvThreshold.Value() / 100 \
+    << "\naccumulate table size " << KnobAccumTabSize.Value() << std::endl;
 
     // add an instrumentation function
     TRACE_AddInstrumentFunction(Trace, 0);

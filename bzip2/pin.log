@@ -1,0 +1,2 @@
+Pin 2.14 kit 71293
+E:  Unable to load /mnt/hgfs/ShareShen/pin-2.14-71313-gcc.4.4.7-linux/source/tools/BBV/bzip2/../obj-intel64/bbvTrace.so: /mnt/hgfs/ShareShen/pin-2.14-71313-gcc.4.4.7-linux/source/tools/BBV/bzip2/../obj-intel64/bbvTrace.so: undefined symbol: _ZN14SignatureTableD1Ev

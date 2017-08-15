@@ -18,38 +18,37 @@ static uint64_t IntervalSize = 0;
 
 /* parse the command line arguments */
 KNOB<string> KnobOutputFile(KNOB_MODE_WRITEONCE, "pintool", "o", "BBV.txt", "specify output file name");
-KNOB<UINT64> KnobAccumTabSize(KNOB_MODE_WRITEONCE, "pintool", "m", "32", "the accumulator table size");
+KNOB<UINT64> KnobAccumTabSize(KNOB_MODE_WRITEONCE, "pintool", "m", "16", "the accumulator table size");
+KNOB<UINT64> KnobSignTabSize(KNOB_MODE_WRITEONCE, "pintool", "m", "32", "the accumulator table size");
 KNOB<UINT64> KnobIntervalSize(KNOB_MODE_WRITEONCE, "pintool", "i", "10000000", "the interval size");
-KNOB<UINT32> KnobRdvThreshold(KNOB_MODE_WRITEONCE, "pintool", "t", "4", "the maximum normalized manhattan distance of two RD vector");
+KNOB<UINT32> KnobRdvThreshold(KNOB_MODE_WRITEONCE, "pintool", "t", "40", "the maximum normalized manhattan distance of two RD vector");
 
 /* for recording distribution into a Histogram, 
    Accur is the accuracy of transforming calculation */
-template <class B = int64_t>
+template <class B = uint32_t>
 class Histogram
 {
+protected:
     B * bins;
-    int _size;
-
-public:
+    uint32_t _size;
     B samples;
 
+public:
     Histogram() : bins(nullptr), _size(0), samples(0) {};
 
-    Histogram(int s);
+    Histogram(const uint32_t s);
 
     Histogram(const Histogram<B> & rhs);
 
     ~Histogram();
 
-    void setSize(int s);
+    void setSize(const uint32_t s);
 
-    const int size() const;
+    const uint32_t size() const;
 
     void clear();
 
     void normalize();
-
-    double manhattanDist(const Histogram<B> & rhs);
 
     B & operator[](const int idx);
 
@@ -64,40 +63,41 @@ public:
     void print(std::ofstream & file);
 };
 
-class AccumulatorTable
+template<class B = uint32_t>
+class AccumulatorTable : public Histogram<B>
 {
-private:
-    class Entry 
-    {
-    private:
-        friend class AccumulatorTable;
-        Histogram<> phaseBBV;
-        uint32_t id;
-        uint32_t occur;
-        uint32_t reuse;
-        uint32_t reuseIdx;
-    
-    public:
-        Entry(const Histogram<> & rdv, const uint32_t idx);
-    
-        ~Entry() {};
-    };
-
-    /* deque for LRU replacement policy */
-    std::deque<Entry *> pt;
-    double threshold;
-    uint32_t index;
+    friend class SignatureTable;
+    uint32_t id;
 
 public:
-    AccumulatorTable() : index(0) {};
+    AccumulatorTable(const int s);
 
-    ~AccumulatorTable();
+    ~AccumulatorTable() {};
+
+    void compress(Histogram<B> & hist);
+
+    double manhattanDist(Histogram<B> & rhs);
+
+    void setId(const uint32_t i);
+};
+
+class SignatureTable
+{
+private:
+    /* deque for LRU replacement policy */
+    std::deque<AccumulatorTable<uint32_t> *> st;
+    double threshold;
+
+public:
+    SignatureTable() {};
+
+    ~SignatureTable();
 
     void setThreshold(double t) { threshold = t; }
 
-    uint32_t find(const Histogram<> & rdv);
+    uint32_t find(AccumulatorTable<> * & accu);
 
-    const int size() const { return pt.size(); }
+    const int size() const { return st.size(); }
 };
 
 // This function is called before every instruction is executed
@@ -121,6 +121,6 @@ INT32 Usage();
 /* global variates */
 std::ofstream fout;
 Histogram<> currBBV;
-//AccumulatorTable phaseTable;
+SignatureTable signTable;
 
 #endif
