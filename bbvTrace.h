@@ -64,41 +64,6 @@ public:
     void print(std::ofstream & file);
 };
 
-class AccumulatorTable
-{
-private:
-    class Entry 
-    {
-    private:
-        friend class AccumulatorTable;
-        Histogram<> phaseBBV;
-        uint32_t id;
-        uint32_t occur;
-        uint32_t reuse;
-        uint32_t reuseIdx;
-    
-    public:
-        Entry(const Histogram<> & rdv, const uint32_t idx);
-    
-        ~Entry() {};
-    };
-
-    /* deque for LRU replacement policy */
-    std::deque<Entry *> pt;
-    double threshold;
-    uint32_t index;
-
-public:
-    AccumulatorTable() : index(0) {};
-
-    ~AccumulatorTable();
-
-    void setThreshold(double t) { threshold = t; }
-
-    uint32_t find(const Histogram<> & rdv);
-
-    const int size() const { return pt.size(); }
-};
 
 // This function is called before every instruction is executed
 VOID PIN_FAST_ANALYSIS_CALL 
@@ -121,6 +86,5 @@ INT32 Usage();
 /* global variates */
 std::ofstream fout;
 Histogram<> currBBV;
-//AccumulatorTable phaseTable;
 
 #endif

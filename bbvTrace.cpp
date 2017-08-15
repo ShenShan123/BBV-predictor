@@ -125,54 +125,11 @@ void Histogram<B>::print(std::ofstream & file)
     file  << "\n";
 }
 
-
-AccumulatorTable::Entry::Entry(const Histogram<> & rdv, const uint32_t idx) : phaseBBV(rdv), id(-1), occur(0), reuse(0), reuseIdx(idx)
-{
-    for (int i = 0; i < phaseBBV.size(); ++i)
-        id ^= phaseBBV[i];
-}
-
-AccumulatorTable::~AccumulatorTable() 
-{
-    for (auto it = pt.begin(); it != pt.end(); ++it)
-        delete *it;
-}
-
-uint32_t AccumulatorTable::find(const Histogram<> & rdv)
-{
-    ++index;
-    double distMin = DBL_MAX;
-    Entry * entryPtr = nullptr;
-
-    /* search for a similar RDV of a phase */
-    for (auto it = pt.begin(); it != pt.end(); ++it) {
-        double dist = (*it)->phaseBBV.manhattanDist(rdv);
-
-        if (dist < distMin) {
-            distMin = dist;
-            entryPtr = *it;
-        }
-    }
-
-    if (distMin < threshold && entryPtr != nullptr) {
-        ++entryPtr->occur;
-        entryPtr->reuse = index - entryPtr->reuseIdx;
-        entryPtr->reuseIdx = index;
-        std::cout << "found a similar phase: id " << entryPtr->id << std::endl;
-        return entryPtr->id;
-    }
-    else {
-        Entry * newEntry = new Entry(rdv, index);
-        std::cout << "creat a new phase: id " << newEntry->id << std::endl;
-        pt.push_back(newEntry);
-        return 0;
-    }
-}
-
 // This function is called before every instruction is executed
 VOID PIN_FAST_ANALYSIS_CALL
 doCount(ADDRINT pc, BOOL isBranch, BOOL isMemRead, BOOL isMemWrite, BOOL hasRead2)
 {
+    std::cout << "enter doCount\n";
     ++BBVInsts;
     /* count the interval length */
     if (isMemRead || isMemWrite || hasRead2) {
@@ -186,6 +143,8 @@ doCount(ADDRINT pc, BOOL isBranch, BOOL isMemRead, BOOL isMemWrite, BOOL hasRead
     }
 
     if (InterCount >= IntervalSize) {
+        std::cout << "new Interval\n";
+
         /* compensate the residual of insts */
         InterCount -= IntervalSize;
         ++NumIntervals;
