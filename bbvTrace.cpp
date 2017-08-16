@@ -129,7 +129,6 @@ void Histogram<B>::print(std::ofstream & file)
 VOID PIN_FAST_ANALYSIS_CALL
 doCount(ADDRINT pc, BOOL isBranch, BOOL isMemRead, BOOL isMemWrite, BOOL hasRead2)
 {
-    std::cout << "enter doCount\n";
     ++BBVInsts;
     /* count the interval length */
     if (isMemRead || isMemWrite || hasRead2) {
@@ -143,8 +142,6 @@ doCount(ADDRINT pc, BOOL isBranch, BOOL isMemRead, BOOL isMemWrite, BOOL hasRead
     }
 
     if (InterCount >= IntervalSize) {
-        std::cout << "new Interval\n";
-
         /* compensate the residual of insts */
         InterCount -= IntervalSize;
         ++NumIntervals;
