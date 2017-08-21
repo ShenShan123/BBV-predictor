@@ -18,9 +18,8 @@ static uint64_t IntervalSize = 0;
 
 /* parse the command line arguments */
 KNOB<string> KnobOutputFile(KNOB_MODE_WRITEONCE, "pintool", "o", "BBV.txt", "specify output file name");
-KNOB<UINT64> KnobAccumTabSize(KNOB_MODE_WRITEONCE, "pintool", "m", "32", "the accumulator table size");
+KNOB<UINT64> KnobAccumTabSize(KNOB_MODE_WRITEONCE, "pintool", "m", "16", "the accumulator table size");
 KNOB<UINT64> KnobIntervalSize(KNOB_MODE_WRITEONCE, "pintool", "i", "10000000", "the interval size");
-KNOB<UINT32> KnobRdvThreshold(KNOB_MODE_WRITEONCE, "pintool", "t", "4", "the maximum normalized manhattan distance of two RD vector");
 
 /* for recording distribution into a Histogram, 
    Accur is the accuracy of transforming calculation */

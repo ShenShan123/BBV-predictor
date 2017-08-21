@@ -156,8 +156,8 @@ doCount(ADDRINT pc, BOOL isBranch, BOOL isMemRead, BOOL isMemWrite, BOOL hasRead
         }
 
         currBBV.clear();
-        accuTable.normalize();
-        /* print compressed BBV */
+        //accuTable.normalize();
+        /* print compressed BBV, we don't normalize BBVs, do it in matlab */
         accuTable.print(fout);
         std::cout << "==== " << NumIntervals << "th interval ====" << std::endl;
     }
@@ -242,7 +242,7 @@ int main(int argc, char *argv[])
     //phaseTable.setThreshold((double)1 / KnobRdvThreshold.Value());
 
     std::cout << "truncation distance " << currBBV.size() << "\nout file " << KnobOutputFile.Value().c_str() \
-    << "\ninterval size " << IntervalSize << "\nPhase threshold " << (double) 1 / KnobRdvThreshold.Value() << std::endl;
+    << "\ninterval size " << IntervalSize << "\naccumulator table size " << KnobAccumTabSize.Value() << std::endl;
 
     // add an instrumentation function
     TRACE_AddInstrumentFunction(Trace, 0);
